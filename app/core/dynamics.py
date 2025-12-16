@@ -1,15 +1,15 @@
-# dynamics.py
-# Simulación del Quadrotor: Ecuaciones de Movimiento
+# app/core/dynamics.py
 
 import numpy as np
 from scipy.integrate import solve_ivp
+
 
 class QuadrotorDynamics:
     """
     Modelado de la dinámica no lineal de un Quadrotor (12 estados).
     """
     def __init__(self):
-        # --- Parámetros Físicos ---
+        # Parámetros Físicos
         self.m = 0.5    # Masa (kg)
         self.g = 9.81   # Gravedad (m/s^2)
         self.L = 0.25   # Distancia del centro al rotor (m)
@@ -27,22 +27,16 @@ class QuadrotorDynamics:
         U = [F1, F2, F3, F4] (Fuerzas/Empuje de los 4 rotores)
         """
         
-        # 1. Decodificar estados
-        # Posición y Velocidad Lineal
-        x, y, z = X[0], X[1], X[2]
-        vx, vy, vz = X[3], X[4], X[5]
-        
-        # Actitud (Ángulos de Euler)
-        phi, theta, psi = X[6], X[7], X[8]
-        
-        # Velocidad Angular (p, q, r)
-        p, q, r = X[9], X[10], X[11]
+        ### Decodificar estados
+        x, y, z = X[0], X[1], X[2]          # Posición
+        vx, vy, vz = X[3], X[4], X[5]       # Velocidad Lineal        
+        phi, theta, psi = X[6], X[7], X[8]  # Ángulos de Euler       
+        p, q, r = X[9], X[10], X[11]        # Velocidad Angular (p, q, r)
 
-        # 2. Variables de Control (Empujes individuales y agregados)
+        ### Variables de Control (Empujes individuales y agregados)
         F1, F2, F3, F4 = U[0], U[1], U[2], U[3]
-        
-        # Empuje total hacia arriba (en el cuerpo)
-        T = F1 + F2 + F3 + F4
+
+        T = F1 + F2 + F3 + F4   # Empuje total hacia arriba (en el cuerpo)
         
         # Torques (Tau)
         Tau_phi = self.L * (F1 - F3)      # Roll (alrededor de x)
@@ -50,7 +44,7 @@ class QuadrotorDynamics:
         Tau_psi = self.km * (F1 - F2 + F3 - F4) # Yaw (alrededor de z)
         Tau = np.array([Tau_phi, Tau_theta, Tau_psi])
 
-        # 3. Dinámica Traslacional (Velocidad lineal)
+        ### Dinámica Traslacional (Velocidad lineal)
         # Matriz de Rotación de Cuerpo (B) a Mundo (W)
         R_BW = np.array([
             [np.cos(psi)*np.cos(theta), np.cos(psi)*np.sin(theta)*np.sin(phi) - np.sin(psi)*np.cos(phi), np.cos(psi)*np.sin(theta)*np.cos(phi) + np.sin(psi)*np.sin(phi)],
@@ -66,7 +60,7 @@ class QuadrotorDynamics:
         dvy = Acc_W[1]
         dvz = Acc_W[2] - self.g # Aceleración de la gravedad
 
-        # 4. Dinámica Rotacional (Velocidad angular y Actitud)
+        ### Dinámica Rotacional (Velocidad angular y Actitud)
         
         # EDOs para la velocidad angular (p, q, r)
         dp = (self.Iyy - self.Izz) / self.Ixx * q * r + Tau_phi / self.Ixx
@@ -78,7 +72,7 @@ class QuadrotorDynamics:
         dtheta = q * np.cos(phi) - r * np.sin(phi)
         dpsi = q * np.sin(phi) / np.cos(theta) + r * np.cos(phi) / np.cos(theta)
 
-        # 5. Retornar el vector de derivadas
+        ### Retorno del vector de derivadas
         dXdt = [
             vx, vy, vz,         # d(Posición) = Velocidad lineal
             dvx, dvy, dvz,      # d(Velocidad lineal) = Aceleración
@@ -94,6 +88,6 @@ class QuadrotorDynamics:
             [0, dt],
             X0,
             args=(U,),
-            method='RK45'
+            method="RK45"
         )
         return sol.y[:, -1] # Retorna el estado final

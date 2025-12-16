@@ -1,5 +1,4 @@
-# controller.py
-# Controlador PD en Cascada para Estabilidad y Posición
+# app/core/controller.py
 
 import numpy as np
 
@@ -14,12 +13,12 @@ class CascadedController:
         self.mass = dynamics.m
         self.g = dynamics.g
         
-        # --- Ganancias de Actitud (Bucle Interno: Controla phi, theta, psi) ---
+        ### Ganancias de Actitud (Bucle Interno: Controla phi, theta, psi)
         # Típicamente más agresivas
         self.Kp_att = np.array([2.5, 2.5, 2.5]) # Kp Roll, Pitch, Yaw
         self.Kd_att = np.array([0.5, 0.5, 0.5]) # Kd Roll, Pitch, Yaw
         
-        # --- Ganancias de Posición (Bucle Externo: Controla x, y, z) ---
+        #### Ganancias de Posición (Bucle Externo: Controla x, y, z)
         # Típicamente menos agresivas
         self.Kp_pos = np.array([0.5, 0.5, 1.0]) # Kp x, y, z
         self.Kd_pos = np.array([0.3, 0.3, 0.8]) # Kd x, y, z

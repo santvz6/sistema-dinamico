@@ -27,22 +27,21 @@ class Drone:
         # X = [x, y, z, vx, vy, vz, phi, theta, psi, p, q, r]
         self.X_state = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.05, -0.05, 0.0, 0.0, 0.0, 0.0])
 
-
-    def run(self):
-        history = np.zeros((self.steps, 12))
+    def run(self, visualize=False):
+        history = np.zeros((self.steps, self.X_state.shape[0]))
         U_history = np.zeros((self.steps, 4))
         time_hist = np.zeros(self.steps)
 
         for i in range(self.steps):
             t = self.time[i]
             
-            # 3.1. Bucle Externo: Control de Posición
+            # Control de Posición
             T_total, ref_angles = self.controller.control_position(self.X_state, self.TARGET_POS)
             
-            # 3.2. Bucle Interno: Control de Actitud (retorna torques Tau)
+            # Control de Actitud (retorna torques Tau)
             Tau_ctrl = self.controller.control_attitude(self.X_state, ref_angles)
             
-            # 3.3. Conversión de Control (T, Tau) a Empujes de Rotor (U)
+            # Conversión de Control (T, Tau) a Empujes de Rotor (U)
             # T_total = F1 + F2 + F3 + F4
             # Tau_phi = L*(F1 - F3); Tau_theta = L*(F2 - F4); Tau_psi = km*(F1 - F2 + F3 - F4)
             # Resuelve el sistema lineal 4x4:
@@ -62,7 +61,7 @@ class Drone:
             # Simulamos la Dinámica
             self.X_state = self.quadrotor.step(self.X_state, U, self.dt)
 
-        self.visualize(history, time_hist)
+        if visualize: self.visualize(history, time_hist)
             
             
     def visualize(self, history, time_hist):
