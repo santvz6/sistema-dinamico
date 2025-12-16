@@ -22,8 +22,12 @@ class CascadedController:
         # Típicamente menos agresivas
         self.Kp_pos = np.array([0.5, 0.5, 1.0]) # Kp x, y, z
         self.Kd_pos = np.array([0.3, 0.3, 0.8]) # Kd x, y, z
+
+
+        self.Ki_pos = np.array([0.05, 0.05, 0.1])
+        self.e_pos_int = np.zeros(3)
         
-    def control_position(self, X, P_des):
+    def control_position(self, X, P_des, dt):
         """ 
         Bucle Externo: Calcula los ángulos de actitud deseados (phi_d, theta_d) 
         y el Empuje total (T).
@@ -36,21 +40,32 @@ class CascadedController:
         e_pos = P_des - P
         e_vel = -V # Asumimos velocidad deseada V_des = [0, 0, 0]
         
-        # 1. Fuerza de control requerida (en marco del mundo, F_c)
-        F_c = self.Kp_pos * e_pos + self.Kd_pos * e_vel
+        # Fuerza de control requerida
+        self.e_pos_int += e_pos * dt
+        self.e_pos_int = np.clip(self.e_pos_int, -2.0, 2.0)
+
+        F_c = (
+            self.Kp_pos * e_pos +
+            self.Kd_pos * e_vel +
+            self.Ki_pos * self.e_pos_int
+        )
         
-        # 2. Calcular Empuje Total (T) y ángulos deseados
+        # Calculo del Empuje Total (T) y ángulos deseados
         
         # Eje Z (Empuje Total)
         # Incluye la gravedad (estabiliza el hover)
-        T_required = self.mass * (self.g + F_c[2]) 
-        T = np.clip(T_required, 0, 20) # Limitar empuje
+        phi = X[6]
+        theta = X[7]
+
+        T_required = self.mass * (self.g + F_c[2]) / (np.cos(phi) * np.cos(theta))
+        T = np.clip(T_required, 0, 20)
+      
         
-        # Ejes X e Y (Ángulos deseados)
+        # Ejes X e Y (Ángulos deseados) 
         # La forma de calcularlos es una aproximación para pequeños ángulos
-        phi_des = F_c[1] / self.g  # Roll deseado para moverse en Y
-        theta_des = -F_c[0] / self.g # Pitch deseado para moverse en X
-        psi_des = 0.0 # Yaw deseado (mantener rumbo fijo)
+        phi_des = np.clip(-F_c[1] / (self.mass * self.g), -0.2, 0.2)     # Pitch deseado para moverse en X
+        theta_des = np.clip(F_c[0] / (self.mass * self.g), -0.2, 0.2)  # Roll deseado para moverse en Y
+        psi_des = 0.0   # Yaw deseado (lo mantenemos fijo dado que no es totalmente necesario)
 
         return T, np.array([phi_des, theta_des, psi_des])
 
