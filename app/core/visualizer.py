@@ -180,13 +180,24 @@ class Plotter:
             )
             return traj_line, drone_point, *arm_lines, info_text
 
-        ani = animation.FuncAnimation(
-            fig, update, frames=range(0, len(hist_pos), 5), # Saltamos de 5 en 5 para que el GIF no pese tanto
-            init_func=init, interval=time_step * 5000, blit=False
-        )
+        writer = animation.PillowWriter(fps=20) 
+        save_path = os.path.join(self.plot_dir, filename)
 
-        plt.legend()
-        ani.save(os.path.join(self.plot_dir, filename), writer="pillow", fps=20)
+        print(f"Grabando y visualizando simultáneamente en: {filename}")
+        
+        # En lugar de FuncAnimation, usamos un bucle manual con el writer
+        with writer.saving(fig, save_path, dpi=100):
+            # Saltamos de 5 en 5 como hacías antes
+            for frame in range(0, len(hist_pos), 5):
+                # Llamamos a tu función update manual
+                update(frame) 
+                
+                # --- ESTAS LÍNEAS HACEN LA MAGIA ---
+                plt.draw()       # Dibuja el frame actual en la ventana
+                plt.pause(0.01)  # Pausa breve para que Windows actualice la imagen
+                writer.grab_frame() # Guarda el frame actual en el archivo
+                # ----------------------------------
+
         plt.show()
 
 

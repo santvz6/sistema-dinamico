@@ -7,14 +7,14 @@ from config import PLOT_DIR
 from core import QuadrotorDynamics, CascadedController, Plotter
 
 class Drone:
-    def __init__(self, T_end:float):
+    def __init__(self, T_end:float, dt:float):
         self.quadrotor= QuadrotorDynamics(L=0.2)
         self.controller = CascadedController(self.quadrotor)
         self.plotter = Plotter(dynamics=self.quadrotor, plot_dir=PLOT_DIR)
 
         # Simulation Time
         self.T_end = T_end   # Duración total de la simulación (s)
-        self.dt = 0.01       # Paso de integración (s)
+        self.dt = dt         # Paso de integración (s)
         self.time = np.arange(0, self.T_end, self.dt)
         self.steps = len(self.time)
 
@@ -122,5 +122,15 @@ class Drone:
         
 
 if __name__ == "__main__":
-    drone = Drone(T_end=20)
-    drone.run(pos_subsampling=1)
+    dt = 0.01
+    drone = Drone(T_end=20, dt=dt)
+
+    # Podemos utilizar el sistema en cascada usando varias Frecuencias
+    # Un dron suele utilizar frecuenicas con valores de
+    # 400Hz-2000Hz para bucles internos y 50-250Hz para bucles externos
+    # Nosotros usamos para bucles internos: f = 1 / dt = 1 / 0.01 = 100Hz
+    # Y para bucle externo usamos: f_int / pos_subsampling
+
+    # He optado por no utilizar este sistema pero podemos 
+    # obtener buenos resultados con valores cercanos a 50
+    drone.run(pos_subsampling=0)
