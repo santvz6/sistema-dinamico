@@ -88,11 +88,11 @@ class Plotter:
         if show: plt.show()
         else: plt.close(fig)
 
+
     def animate_3d_trajectory(self, hist_pos, hist_vel, hist_att, hist_T,
-                           target_pos, time_step, filename):
+                            waypoints, time_step, filename):
         """
-        Genera una animación 3D de la trayectoria de posición del dron.
-        Necesita el historial de posición y el paso de tiempo (dt).
+        Genera una animación 3D del dron recorriendo el circuito de waypoints.
         """
 
         fig = plt.figure(figsize=(12, 8))
@@ -109,18 +109,21 @@ class Plotter:
         ax.set_xlabel("X (m)")
         ax.set_ylabel("Y (m)")
         ax.set_zlabel("Z (m)")
-        ax.set_title("Quadrotor 3D Animation")
+        ax.set_title("Quadrotor Circuit Animation")
 
-        # Objetivo
-        ax.scatter(*target_pos, color="r", marker="*", s=200, label="Target")
+        # ================== DIBUJAR CIRCUITO ==================
+        wps = np.array(waypoints)
+        # Dibujar todos los puntos del circuito
+        ax.scatter(wps[:, 0], wps[:, 1], wps[:, 2], color="r", marker="*", s=200, label="Waypoints")
+        # Línea punteada que une los puntos del circuito
+        ax.plot(wps[:, 0], wps[:, 1], wps[:, 2], "r--", alpha=0.3)
 
-        # ================== TRAYECTORIA ==================
+        # ================== TRAYECTORIA REAL ==================
         traj_line, = ax.plot([], [], [], "b", alpha=0.5, label="Trajectory")
         drone_point, = ax.plot([], [], [], "go", markersize=6)
 
-        # ================== DRON ==================
+        # ================== ESTRUCTURA DRON ==================
         L = self.dynamics.L
-
         arms_body = np.array([
             [[-L, 0, 0], [ L, 0, 0]],
             [[0, -L, 0], [0,  L, 0]]
@@ -131,68 +134,55 @@ class Plotter:
             ax.plot([], [], [], "k", lw=3)[0]
         ]
 
-        # ================== TEXTO ==================
+        # ================== INFO TEXTO ==================
         info_text = ax.text2D(0.02, 0.95, "", transform=ax.transAxes)
 
-        # ================== INIT ==================
         def init():
             traj_line.set_data([], [])
             traj_line.set_3d_properties([])
-
             drone_point.set_data([], [])
             drone_point.set_3d_properties([])
-
             for arm in arm_lines:
                 arm.set_data([], [])
                 arm.set_3d_properties([])
-
             info_text.set_text("")
             return traj_line, drone_point, *arm_lines, info_text
 
-        # ================== UPDATE ==================
         def update(frame):
             pos = hist_pos[frame]
             phi, theta, psi = hist_att[frame]
 
-            # Trayectoria
+            # Actualizar línea de trayectoria
             traj_line.set_data(hist_pos[:frame, 0], hist_pos[:frame, 1])
             traj_line.set_3d_properties(hist_pos[:frame, 2])
 
-            # Centro del dron
+            # Actualizar posición dron
             drone_point.set_data([pos[0]], [pos[1]])
             drone_point.set_3d_properties([pos[2]])
 
-            # Rotación
+            # Calcular rotación del dron
             R = rotation_matrix(phi, theta, psi)
-
             for i, arm in enumerate(arms_body):
                 arm_world = (R @ arm.T).T + pos
                 arm_lines[i].set_data(arm_world[:, 0], arm_world[:, 1])
                 arm_lines[i].set_3d_properties(arm_world[:, 2])
 
-            # Texto
+            # Info en pantalla
             vx, vy, vz = hist_vel[frame]
-            T = hist_T[frame]
-
             info_text.set_text(
-                f"Vel: [{vx:.2f}, {vy:.2f}, {vz:.2f}]\n"
-                f"φ={phi:.2f}, θ={theta:.2f}, ψ={psi:.2f}\n"
-                f"T={T:.2f}"
+                f"WP Actual: {pos[0]:.1f}, {pos[1]:.1f}, {pos[2]:.1f}\n"
+                f"Vel: {np.linalg.norm([vx, vy, vz]):.2f} m/s\n"
+                f"Angs: φ={phi:.2f}, θ={theta:.2f}"
             )
-
             return traj_line, drone_point, *arm_lines, info_text
 
         ani = animation.FuncAnimation(
-            fig,
-            update,
-            frames=range(0, len(hist_pos), 4),
-            init_func=init,
-            interval=time_step * 1000,
-            blit=False
+            fig, update, frames=range(0, len(hist_pos), 5), # Saltamos de 5 en 5 para que el GIF no pese tanto
+            init_func=init, interval=time_step * 5000, blit=False
         )
 
         plt.legend()
-        ani.save(os.path.join(self.plot_dir, filename), writer="pillow", fps=30)
+        ani.save(os.path.join(self.plot_dir, filename), writer="pillow", fps=20)
         plt.show()
 
 

@@ -10,7 +10,7 @@ class Drone:
 
     def __init__(self, T_end:float):
         
-        self.quadrotor= QuadrotorDynamics()
+        self.quadrotor= QuadrotorDynamics(L=0.2)
         self.controller = CascadedController(self.quadrotor)
         self.plotter = Plotter(dynamics=self.quadrotor, plot_dir=PLOT_DIR)
 
@@ -21,11 +21,16 @@ class Drone:
         self.steps = len(self.time)
 
         # Objetivo de la Misión: Hover
-        self.TARGET_POS = np.array([20.0, 20.0, 5.0])
+        self.waypoints = [
+            np.array([20.0, -20.0, 50.0]),
+            np.array([40.0, 0.0, 60.0]),
+            np.array([20.0, 20.0, 50.0]),
+            np.array([0.0, 0.0, 40.0])
+        ]
+        self.current_wp_idx = 0
+        self.TARGET_POS = self.waypoints[self.current_wp_idx]
 
-
-        # Estado inicial del dron: ligeramente inclinado y en el suelo
-        # X = [x, y, z, vx, vy, vz, phi, theta, psi, p, q, r]
+        # Estado inicial = [x, y, z, vx, vy, vz, phi, theta, psi, p, q, r]
         self.X_state = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.05, -0.05, 0.0, 0.0, 0.0, 0.0])
 
     def run(self, visualize=False):
@@ -36,6 +41,18 @@ class Drone:
 
         for i in range(self.steps):
             t = self.time[i]
+
+ 
+            target_distance = np.linalg.norm(self.TARGET_POS - self.X_state[0:3])
+            if target_distance < 5: 
+                if self.current_wp_idx < len(self.waypoints) - 1:
+                    self.current_wp_idx += 1
+                    self.TARGET_POS = self.waypoints[self.current_wp_idx]
+                    logger.info(f"Punto alcanzado! Rumbo al Waypoint {self.current_wp_idx}")
+                else:
+                    # Si quieres que el circuito sea infinito (bucle)
+                    self.current_wp_idx = 0
+                    self.TARGET_POS = self.waypoints[self.current_wp_idx]
             
             # Control de Posición
             T_total, ref_angles = self.controller.control_position(self.X_state, self.TARGET_POS)
@@ -54,7 +71,7 @@ class Drone:
                 T_total/4 - Tau_ctrl[0]/(2*L) + 0 + Tau_ctrl[2]/(4*km),          # F3 (Roll-, Yaw+)
                 T_total/4 + 0 - Tau_ctrl[1]/(2*L) - Tau_ctrl[2]/(4*km)           # F4 (Pitch-, Yaw-)
             ])
-            U = np.clip(U, 0, self.quadrotor.m * self.quadrotor.g * 2)
+            U = np.clip(U, 0, (self.quadrotor.m * self.quadrotor.g))
 
             # Simulamos la Dinámica
             self.X_state = self.quadrotor.step(self.X_state, U, self.dt)
@@ -87,7 +104,7 @@ class Drone:
             hist_vel=hist_vel,
             hist_att=hist_att,
             hist_T=hist_T,
-            target_pos=self.TARGET_POS,
+            waypoints=self.waypoints,
             time_step=self.dt,
             filename="3d_trajectory.gif"
         )
@@ -100,5 +117,5 @@ class Drone:
         
 
 if __name__ == "__main__":
-    drone = Drone(T_end=15)
+    drone = Drone(T_end=30)
     drone.run(visualize=True)
