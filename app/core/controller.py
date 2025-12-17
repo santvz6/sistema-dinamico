@@ -13,21 +13,30 @@ class CascadedController:
         self.mass = dynamics.m
         self.g = dynamics.g
         
+
         ### Ganancias de Actitud (Bucle Interno: Controla phi, theta, psi)
-        # Típicamente más agresivas
-        self.Kp_att = np.array([2.5, 2.5, 2.5]) # Kp Roll, Pitch, Yaw
-        self.Kd_att = np.array([0.5, 0.5, 0.5]) # Kd Roll, Pitch, Yaw
-        
+        # Este bucle controla la orientación del dron (roll, pitch, yaw)
+        # Se suele poner más agresivo para que el dron responda rápido a cambios de ángulo
+        self.Kp_att = np.array([2.5, 2.5, 2.5]) * self.mass / dynamics.m_ref
+        # Kp_att: Ganancia proporcional de actitud
+        #  - Controla cuánto responde el dron a un error de ángulo
+        #  - Valores altos: respuesta rápida, pero puede generar oscilaciones
+        self.Kd_att = np.array([0.5, 0.5, 0.5]) * self.mass / dynamics.m_ref
+        # Kd_att: Ganancia derivativa de actitud
+        #  - Controla la respuesta frente a la velocidad angular
+        #  - Ayuda a amortiguar oscilaciones y suavizar movimientos
+
         #### Ganancias de Posición (Bucle Externo: Controla x, y, z)
-        # Típicamente menos agresivas
-        self.Kp_pos = np.array([0.5, 0.5, 1.0]) # Kp x, y, z
-        self.Kd_pos = np.array([0.3, 0.3, 0.8]) # Kd x, y, z
+        # Este bucle controla la posición del dron en el espacio (x, y, z)
+        # Se suele poner menos agresivo que el bucle interno, porque la posición cambia más lentamente
+        self.Kp_pos = np.array([1.0, 1.0, 1.0]) * self.mass / dynamics.m_ref
+        # Kp_pos: Ganancia proporcional de posición
+        #  - Simple: Determina qué tan agresivo es el dron al acercarse al objetivo
+        self.Kd_pos = np.array([1.0, 1.0, 1.0]) * self.mass / dynamics.m_ref
+        # Kd_pos: Ganancia derivativa de posición
+        #  - Simple: Determina cuánto frena el dron ante la velocidad
 
-
-        self.Ki_pos = np.array([0.05, 0.05, 0.1])
-        self.e_pos_int = np.zeros(3)
-        
-    def control_position(self, X, P_des, dt):
+    def control_position(self, X, P_des):
         """ 
         Bucle Externo: Calcula los ángulos de actitud deseados (phi_d, theta_d) 
         y el Empuje total (T).
@@ -40,34 +49,26 @@ class CascadedController:
         e_pos = P_des - P
         e_vel = -V # Asumimos velocidad deseada V_des = [0, 0, 0]
         
-        # Fuerza de control requerida
-        self.e_pos_int += e_pos * dt
-        self.e_pos_int = np.clip(self.e_pos_int, -2.0, 2.0)
-
         F_c = (
             self.Kp_pos * e_pos +
-            self.Kd_pos * e_vel +
-            self.Ki_pos * self.e_pos_int
+            self.Kd_pos * e_vel 
         )
         
-        # Calculo del Empuje Total (T) y ángulos deseados
-        
+        ### Calculo del Empuje Total (T_required) y ángulos deseados
         # Eje Z (Empuje Total)
         # Incluye la gravedad (estabiliza el hover)
         phi = X[6]
         theta = X[7]
 
         T_required = self.mass * (self.g + F_c[2]) / (np.cos(phi) * np.cos(theta))
-        T = np.clip(T_required, 0, 20)
-      
         
-        # Ejes X e Y (Ángulos deseados) 
+        # Ejes X e Y (Ángulos deseados)
         # La forma de calcularlos es una aproximación para pequeños ángulos
-        phi_des = np.clip(-F_c[1] / (self.mass * self.g), -0.2, 0.2)     # Pitch deseado para moverse en X
-        theta_des = np.clip(F_c[0] / (self.mass * self.g), -0.2, 0.2)  # Roll deseado para moverse en Y
+        phi_des = np.clip(-F_c[1] / (self.mass * self.g), -0.2, 0.2)    # Pitch deseado para moverse en X
+        theta_des = np.clip(F_c[0] / (self.mass * self.g), -0.2, 0.2)   # Roll deseado para moverse en Y
         psi_des = 0.0   # Yaw deseado (lo mantenemos fijo dado que no es totalmente necesario)
 
-        return T, np.array([phi_des, theta_des, psi_des])
+        return T_required, np.array([phi_des, theta_des, psi_des])
 
     def control_attitude(self, X, ref_angles):
         """ 
@@ -81,16 +82,7 @@ class CascadedController:
         e_att = ref_angles - E
         e_w = -W # Asumimos velocidad angular deseada W_des = [0, 0, 0]
         
-        # 1. Torques de control (Tau)
+        # Torques de control (Tau)
         Tau = self.Kp_att * e_att + self.Kd_att * e_w
-        
-        # 2. Conversión de Torque/Empuje (T, Tau) a comandos de motor (U)
-        # T (Empuje Total) se obtiene del control_position
-        # U = [F1, F2, F3, F4]
-        
-        # Esta es la matriz de control inversa (simplificada)
-        #T_ctrl, Tau_ctrl_arr = Tau[0], Tau[1], Tau[2] # Tau solo para Roll, Pitch, Yaw
-        
-        # Nota: La conversión completa se hará en el script principal para simplicidad, 
-        # aquí solo devolvemos los torques de control.
+
         return Tau

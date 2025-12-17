@@ -9,18 +9,23 @@ class QuadrotorDynamics:
     Modelado de la dinámica no lineal de un Quadrotor (12 estados).
     """
     def __init__(self):
+        # Refrencias a un dron original
+        self.m_ref = 0.5
+        self.L_ref = 0.25 
+        self.kf_ref = 1.0
+
         # Parámetros Físicos
-        self.m = 0.5    # Masa (kg)
+        self.L = 1   # Distancia del centro al rotor (m)
+        self.m = self.m_ref * (self.L / self.L_ref)**2   # Masa (kg)
         self.g = 9.81   # Gravedad (m/s^2)
-        self.L = 0.25   # Distancia del centro al rotor (m)
         self.m_rotor = self.m * 0.25 / 4 # Masa de cada rotor (kg)
         self.Ixx = 2 * self.m_rotor * self.L**2  # Momento de inercia x 
         self.Iyy = 2 * self.m_rotor * self.L**2  # Momento de inercia y
         self.Izz = 4 * self.m_rotor * self.L**2  # Momento de inercia z
         self.I = np.array([self.Ixx, self.Iyy, self.Izz])
-        self.kf = 1.0  # Coeficiente de fuerza/empuje (simplificado)
+        self.kf = self.kf_ref * (self.L / self.L_ref)**2 # Coeficiente de fuerza/empuje
         self.km = 0.05 # Coeficiente de momento/arrastre
-        self.k_drag = 1  # coeficiente de arrastre (ajustable)
+        self.k_drag = 1  # Resistencia al aire
         
     def _state_derivative(self, t, X, U):
         """
@@ -41,7 +46,7 @@ class QuadrotorDynamics:
         # F1: derecha, F2: adelante, F3: izquierda, F4: atrás
         F1, F2, F3, F4 = U[0], U[1], U[2], U[3]
 
-        T = F1 + F2 + F3 + F4   # Empuje total hacia arriba (en el cuerpo)
+        T = (F1 + F2 + F3 + F4)  # Empuje total hacia arriba (en el cuerpo)
         
         # Torques (Tau)
         Tau_phi = self.L * (F1 - F3)            # Roll - Rodar      (alrededor de x)
